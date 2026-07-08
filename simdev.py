@@ -1,75 +1,111 @@
-#!/usr/bin/env python3
-"""
-simdev.py
-
-Simple Knob simulator.
-
-Acts like a device by listening on localhost:5000.
-Any JSON received is printed to the console.
-"""
-
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+import asyncio
 import json
-import socket
 
-HOST = "127.0.0.1"
-PORT = 5000
+app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+clients: list[WebSocket] = []
 
 
-def main():
+@app.get("/")
+async def index():
+    from fastapi.responses import FileResponse
+    return FileResponse("static/index.html")
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
 
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind((HOST, PORT))
-        server.listen(1)
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
 
-        print(f"SimDevice listening on {HOST}:{PORT}")
-        print("Waiting for runtime...")
+    await websocket.accept()
 
-        conn, addr = server.accept()
+    clients.append(websocket)
 
-        print(f"Connected from {addr}")
+    print(f"Browser connected. Clients={len(clients)}")
 
-        with conn:
+    try:
+        while True:
+            await websocket.receive_text()
 
-            buffer = ""
+    except WebSocketDisconnect:
 
-            while True:
+        print("Browser disconnected.")
 
-                data = conn.recv(4096)
+        clients.remove(websocket)
 
-                if not data:
-                    break
+        
 
-                buffer += data.decode("utf-8")
+async def render(payload: dict):
 
-                #
-                # Messages are newline delimited.
-                #
-                while "\n" in buffer:
+    print("RENDER:", payload)
 
-                    line, buffer = buffer.split("\n", 1)
+    for client in clients.copy():
+        try:
+            await client.send_json(payload)
+        except Exception as e:
+            print("Websocket send failed:", e)
+            clients.remove(client)
 
-                    if not line.strip():
-                        continue
+ 
 
-                    try:
 
-                        payload = json.loads(line)
+async def tcp_server(reader, writer):
 
-                        print()
-                        print("========== DEVICE ==========")
-                        print(json.dumps(payload, indent=4))
-                        print("============================")
-                        print()
+    address = writer.get_extra_info("peername")
 
-                    except json.JSONDecodeError as ex:
+    print(f"Device connected: {address}")
 
-                        print("Invalid JSON")
-                        print(ex)
+    while True:
 
-        print("Runtime disconnected.")
+        data = await reader.readline()
 
+        if not data:
+            break
+
+        payload = json.loads(data.decode())
+
+        print("DEVICE PAYLOAD:")
+        print(payload)
+
+        await render(payload)
+
+    writer.close()
+
+
+async def start_tcp():
+
+    server = await asyncio.start_server(
+        tcp_server,
+        "0.0.0.0",
+        5000
+    )
+
+    print("TCP device server listening on 5000")
+
+    async with server:
+        await server.serve_forever()
 
 if __name__ == "__main__":
-    main()
+
+    async def main():
+
+        tcp_task = asyncio.create_task(start_tcp())
+
+        config = uvicorn.Config(
+            app,
+            host="0.0.0.0",
+            port=8080
+        )
+
+        server = uvicorn.Server(config)
+
+        await asyncio.gather(
+            tcp_task,
+            server.serve()
+        )
+
+
+    asyncio.run(main())
