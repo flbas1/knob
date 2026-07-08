@@ -1,0 +1,41 @@
+import json
+from queue import Queue
+
+
+class SimDevice:
+
+    def __init__(self):
+        self.events = Queue()
+        self.connected = False
+
+    def connect(self):
+        self.connected = True
+        print("SimDevice connected.")
+
+    def disconnect(self):
+        self.connected = False
+        print("SimDevice disconnected.")
+
+    def render(self, payload: dict):
+        """
+        Runtime -> Device
+        """
+
+        print()
+        print("========== DEVICE ==========")
+        print(json.dumps(payload, indent=4))
+        print("============================")
+        print()
+
+    def inject_rotate(self, delta):
+        self.events.put({
+            "type": "rotate",
+            "delta": delta
+        })
+
+    def receive(self):
+
+        if self.events.empty():
+            return None
+
+        return self.events.get()

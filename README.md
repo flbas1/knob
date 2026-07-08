@@ -1,3 +1,3 @@
-Knob is a cross-platform host runtime for programmable hardware control surfaces. It discovers operating system capabilities, loads plugins, and communicates with attached devices through a hardware-independent protocol.
+Knob is a cross-platform runtime for programmable control surfaces.
 
-Write a plugin once. Run it on Windows, macOS, and Linux without changing plugin code.
+An ESP32 knob is the first supported device. Future renderers may include iPhone, Android, and other touch-enabled hardware. Plugins provide functionality, providers integrate with operating systems and services, and context determines what controls are presented.

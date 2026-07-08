@@ -1,0 +1,7 @@
+# lvgl
+# PySDL2
+# PySDL2-dll
+
+fastapi
+uvicorn
+websockets
